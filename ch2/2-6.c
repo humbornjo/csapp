@@ -14,6 +14,6 @@ void main () {
 		unsigned int a = 0;
 		printf("%.8x\n",a -1);
 		long b = 3510593.0;
-		ConvertDec2Hex(&a);
+		ConvertDec2Hex(&b);
 }
 	
