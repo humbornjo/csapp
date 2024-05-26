@@ -1,0 +1,6 @@
+48 c7 c7 90 dc 61 55 48 /* refer to intermidiate/asm_phase3.s */
+83 c4 e0 c3 00 00 00 00
+fa 18 40 00 00 00 00 00
+35 39 62 39 39 37 66 61
+00 00 00 00 00 00 00 00
+78 dc 61 55 00 00 00 00 /* redirect2stack                     */
