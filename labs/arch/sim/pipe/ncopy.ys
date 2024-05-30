@@ -1,0 +1,153 @@
+#/* $begin ncopy-ys */
+##################################################################
+# ncopy.ys - Copy a src block of len words to dst.
+# Return the number of positive words (>0) contained in src.
+#
+# Include your name and ID here.
+#
+# Describe how and why you modified the baseline code.
+#
+##################################################################
+# Do not modify this portion
+# Function prologue.
+# %rdi = src, %rsi = dst, %rdx = len
+ncopy:
+
+##################################################################
+# You can modify this portion
+	# Loop header
+	iaddq $-8, %rdx
+	jl L0H7
+LoopMR:        
+    mrmovq (%rdi), %r8
+    mrmovq 8(%rdi), %r9
+	mrmovq 16(%rdi), %r10
+    mrmovq 24(%rdi), %r11
+    mrmovq 32(%rdi), %r12
+    mrmovq 40(%rdi), %r13
+    mrmovq 48(%rdi), %r14
+    mrmovq 56(%rdi), %rbx
+RM1:
+	andq %r8, %r8
+    rmmovq %r8, (%rsi)
+    jle RM2
+    iaddq $1, %rax
+RM2:
+	andq %r9, %r9
+    rmmovq %r9, 8(%rsi)
+    jle RM3
+    iaddq $1, %rax
+RM3:
+	andq %r10, %r10
+    rmmovq %r10, 16(%rsi)
+    jle RM4
+    iaddq $1, %rax
+RM4:
+	andq %r11, %r11
+    rmmovq %r11, 24(%rsi)
+    jle RM5
+    iaddq $1, %rax
+RM5:   
+	andq %r12, %r12
+    rmmovq %r12, 32(%rsi)
+    jle RM6
+    iaddq $1, %rax
+RM6:   
+	andq %r13, %r13
+    rmmovq %r13, 40(%rsi)
+    jle RM7
+    iaddq $1, %rax
+RM7:
+	andq %r14, %r14
+    rmmovq %r14, 48(%rsi)
+    jle RM8
+    iaddq $1, %rax
+RM8:
+	andq %rbx, %rbx
+    rmmovq %rbx, 56(%rsi)
+    jle Npos
+    iaddq $1, %rax
+Npos:
+	iaddq $64, %rdi
+    iaddq $64, %rsi
+    iaddq $-8, %rdx   
+    jge LoopMR
+L0H7:
+    iaddq $3, %rdx
+	jl L0H4              
+    jg L6H7 
+    mrmovq 32(%rdi), %r8
+    je Step5           
+L0H4:
+    iaddq $3, %rdx
+    jl L0H1
+    jg L3H4
+    mrmovq 8(%rdi), %r8
+    je Step2
+L3H4:
+    iaddq $-1, %rdx
+    mrmovq 16(%rdi), %r8
+    je Step3
+    mrmovq 24(%rdi), %r8
+    jmp Step4
+L0H1:
+    iaddq $1, %rdx
+    mrmovq (%rdi), %r8
+    je Step1
+    ret
+L6H7:
+    iaddq $-1, %rdx
+    mrmovq 40(%rdi), %r8
+    je Step6
+    mrmovq 48(%rdi), %r8
+Step7:
+    andq %r8, %r8
+    rmmovq %r8, 48(%rsi)
+    mrmovq 40(%rdi), %r8
+    jle Step6
+    iaddq $1, %rax
+Step6:
+    andq %r8, %r8
+    rmmovq %r8, 40(%rsi)
+    mrmovq 32(%rdi), %r8
+    jle Step5
+    iaddq $1, %rax
+Step5:
+    andq %r8, %r8
+    rmmovq %r8, 32(%rsi)
+    mrmovq 24(%rdi), %r8 
+    jle Step4
+    iaddq $1, %rax
+Step4:
+    andq %r8, %r8
+    rmmovq %r8, 24(%rsi)
+    mrmovq 16(%rdi), %r8
+    jle Step3
+    iaddq $1, %rax
+Step3:
+    andq %r8, %r8
+    rmmovq %r8, 16(%rsi)
+    mrmovq 8(%rdi), %r8
+    jle Step2
+    iaddq $1, %rax
+Step2:
+    andq %r8, %r8
+    rmmovq %r8, 8(%rsi)
+    mrmovq (%rdi), %r8
+    jle Step1
+    iaddq $1, %rax
+Step1:
+    andq %r8, %r8
+    rmmovq %r8, (%rsi)
+    jle Done
+    iaddq $1, %rax
+
+##################################################################
+# Do not modify the following section of code
+# Function epilogue.
+Done:
+	ret
+##################################################################
+# Keep the following label at the end of your function
+End:
+#/* $end ncopy-ys */
