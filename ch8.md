@@ -1,0 +1,529 @@
+# 8 Exceptional Control Flow
+
+## 8.1 Exceptions
+An _exception_ is an abrupt change in the control flow in response to some
+change in the processor’s state. **Figure 8.1** shows the basic idea.
+
+![](asset/ch8/1.png)
+
+In the figure, the processor is executing some current instruction $I_{curr}$ when a significant change in the processor’s `state` occurs. The state is encoded in various bits and signals inside the processor. The change in state is known as an `event`.
+
+The event might be directly related to the execution of the current instruction.
+For example, a virtual memory page fault occurs, an arithmetic overflow occurs,
+or an instruction attempts a divide by zero. On the other hand, the event might be
+unrelated to the execution of the current instruction. For example, a system timer
+goes off or an I/O request completes.
+
+In any case, when the processor detects that the event has occurred, it makes
+an indirect procedure call (the exception), through a jump table called an _exception table_, to an operating system subroutine (the _exception handler_) that is specifically designed to process this particular kind of event. When the exception handler finishes processing, one of three things happens, depending on the type of event that caused the exception:
+
+1. The handler returns control to the current instruction $I_{curr}$ , the instruction that was executing when the event occurred.
+2. The handler returns control to $I_{next}$, the instruction that would have executed next had the exception not occurred.
+3. The handler aborts the interrupted program
+
+### 8.1.1 Exception Handling
+Each type of possible exception in a system is assigned a unique nonnegative
+integer _exception number_. Some of these numbers are assigned by the designers
+of the processor. Other numbers are assigned by the designers of the operating
+system _kernel_ (the memory-resident part of the operating system).
+
+Each type of possible exception in a system is assigned a unique nonnegative integer _exception number_. Some of these numbers are assigned by the designers of the processor. Other numbers are assigned by the designers of the operating system _kernel_ (**the memory-resident part of the operating system**). Examples of the former include divide by zero, page faults, memory access violations, breakpoints, and arithmetic overflows. Examples of the latter include system calls and signals from external I/O devices.
+
+![](asset/ch8/2.png)
+
+At system boot time (when the computer is reset or powered on), the operating system allocates and initializes a jump table called an _exception table_, so that entry $k$ contains the address of the handler for exception $k$. **Figure 8.2** shows the format of an exception table.
+
+![](asset/ch8/3.png)
+
+At run time (when the system is executing some program), the processor detects that an event has occurred and determines the corresponding exception number $k$. The processor then triggers the exception by making an indirect procedure call, through entry $k$ of the exception table, to the corresponding handler. **Figure 8.3** shows how the processor uses the exception table to form the address of the appropriate exception handler. The exception number is an index into the exception table, whose starting address is contained in a special CPU register called the _exception table base register_.
+
+An exception is akin to a procedure call, but with some important differences:
+* As with a procedure call, the processor pushes a return address on the stack before branching to the handler. However, depending on the class of exception, the return address is either the current instruction or the next instruction.
+* The processor also pushes some additional processor state onto the stack that will be necessary to restart the interrupted program when the handler returns. For example, an x86-64 system pushes the EFLAGS register containing the current condition codes, among other things, onto the stack.
+* When control is being transferred from a user program to the kernel, all of these items are pushed onto the kernel’s stack rather than onto the user’s stack.
+* Exception handlers run in _kernel mode_, which means they have
+complete access to all system resources.
+
+Once the hardware triggers the exception, the rest of the work is done in software by the exception handler. After the handler has processed the event, it optionally returns to the interrupted program by executing a special “return from interrupt” instruction, which pops the appropriate state back into the processor’s control and data registers, restores the state to _user mode_ if the exception interrupted a user program, and then returns control to the interrupted program.
+
+### 8.1.2 Classes of Exceptions
+
+Exceptions can be divided into four classes: _interrupts, traps, faults, and aborts_. The table in **Figure 8.4** summarizes the attributes of these classes.
+
+![](asset/ch8/4.png)
+
+**Interrupts** 
+
+_Interrupts_ occur _asynchronously_ as a result of signals from I/O devices that are external to the processor. Hardware interrupts are asynchronous in the sense that they are not caused by the execution of any particular instruction. Exception handlers for hardware interrupts are often called _interrupt handlers_.
+
+**Figure 8.5** summarizes the processing for an interrupt. I/O devices such as network adapters, disk controllers, and timer chips trigger interrupts by signaling a pin on the processor chip and placing onto the system bus the exception number that identifies the device that caused the interrupt.
+
+![](asset/ch8/5.png)
+
+**Traps and System Calls**
+
+_Traps_ are _intentional_ exceptions that occur as a result of executing an instruction. Like interrupt handlers, trap handlers return control to the next instruction. The most important use of traps is to provide a procedure-like interface between user programs and the kernel, known as a _system call_.
+
+User programs often need to request services from the kernel such as reading a file (`read`), creating a new process (`fork`), loading a new program (`execve`), and terminating the current process (`exit`). To allow controlled access to such kernel services, processors provide a special syscall `n` instruction that user programs can execute when they want to request service `n`. Executing the _syscall_ instruction causes a trap to an exception handler that decodes the argument and calls the appropriate kernel routine. **Figure 8.6** summarizes the processing for a system call.
+
+![](asset/ch8/6.png)
+
+From a programmer’s perspective, a system call is identical to a regular function call. However, their implementations are quite different. Regular functions run in _user mode_, which restricts the types of instructions they can execute, and they access the same stack as the calling function. A system call runs in _kernel mode_, which allows it to execute privileged instructions and access a stack defined in the kernel.
+
+**Faults**
+
+Faults result from error conditions that a handler might be able to correct. When a fault occurs, the processor transfers control to the fault handler. If the handler is able to correct the error condition, it returns control to the faulting instruction, thereby re-executing it. Otherwise, the handler returns to an `abort` routine in the kernel that terminates the application program that caused the fault. **Figure 8.7** summarizes the processing for a fault.
+
+![](asset/ch8/7.png)
+
+**Aborts**
+
+Aborts result from unrecoverable fatal errors, typically hardware errors such as parity errors that occur when DRAM or SRAM bits are corrupted. Abort handlers never return control to the application program. As shown in **Figure 8.8**, the handler returns control to an `abort` routine that terminates the application program.
+
+![](asset/ch8/8.png)
+
+### 8.1.3 Exceptions in Linux/x86-64 Systems
+
+Read the book
+
+## 8.2 Processes
+
+**Exceptions are the basic building blocks that allow the operating system kernel to provide the notion of a _process_**, one of the most profound and successful ideas in computer science.
+
+When we run a program on a modern system, we are presented with the illusion that our program is the only one currently running in the system. Our program appears to have exclusive use of both the processor and the memory. The processor appears to execute the instructions in our program, one after the other, without interruption. Finally, the code and data of our program appear to be the only objects in the system’s memory. These illusions are provided to us by the notion of a process.
+
+The classic definition of a process is an instance of a program in execution.
+
+Each program in the system runs in the context of some process. 
+
+The context consists of the state that the program needs to run correctly, includes the **program’s code and data stored in memory, its stack, the contents of its general-purpose registers, its program counter, environment variables, and the set of open file descriptors**.
+
+Each time a user runs a program by typing the name of an executable object file to the shell, the shell creates a new process and then runs the executable object file in the context of this new process. Application programs can also create new processes and run either their own code or other applications in the context of the new process.
+
+### 8.2.1 Logical Control Flow
+
+If we were to use a debugger to single-step the execution of our program, we would observe a series of program counter (PC) values that corresponded exclusively to instructions contained in our program’s executable object file or in shared objects linked into our program dynamically at run time. This sequence of PC values is known as a _logical control flow_, or simply _logical flow_.
+
+![](asset/ch8/9.png)
+
+Consider a system that runs three processes, as shown in Figure 8.12. The single physical control flow of the processor is partitioned into three logical flows, one for each process. Each vertical line represents a portion of the logical flow for a process. In the example, the execution of the three logical flows is interleaved. Process A runs for a while, followed by B, which runs to completion. Process C then runs for a while, followed by A, which runs to completion. Finally, C is able to run to completion.
+
+### 8.2.2 Concurrent Flows
+
+A logical flow whose execution overlaps in time with another flow is called
+a _concurrent flow_, and the two flows are said to _run concurrently_. More precisely,
+flows X and Y are concurrent with respect to each other if and only if X begins
+after Y begins and before Y finishes, or Y begins after X begins and before X
+finishes. For example, in Figure 8.12, processes A and B run concurrently, as do
+A and C. On the other hand, B and C do not run concurrently, because the last
+instruction of B executes before the first instruction of C.
+
+The general phenomenon of multiple flows executing concurrently is known
+as _concurrency_. The notion of a process taking turns with other processes is also
+known as _multitasking_. Each time period that a process executes a portion of its
+flow is called a _time slice_. Thus, multitasking is also referred to as _time slicing_.
+
+If two flows overlap in time, then they are concurrent, even if they are running on the same processor. However, we will sometimes find it useful to identify a proper subset of concurrent flows known as _parallel flows_. If two flows are running concurrently on different processor cores or computers, then we say that they are _parallel flows_, that they are _running in parallel_, and have _parallel execution_.
+
+### 8.2.3 Private Address Space
+
+The bottom portion of the address space is reserved for the user program, with
+the usual code, data, heap, and stack segments. The code segment always begins at
+address `0x400000`. The top portion of the address space is reserved for the kernel
+(the memory-resident part of the operating system). This part of the address space
+contains the code, data, and stack that the kernel uses when it executes instructions
+on behalf of the process (e.g., when the application program executes a system
+call).
+
+![](asset/ch8/10.png)
+
+### 8.2.4 User and Kernel Modes
+
+In order for the operating system kernel to provide an airtight process abstraction, the processor must provide a mechanism that restricts the instructions that an application can execute, as well as the portions of the address space that it can access.
+
+Processors typically provide this capability with a _mode bit_ in some control register that characterizes the privileges that the process currently enjoys. When the mode bit is set, the process is running in _kernel mode_ (sometimes called _supervisor mode_). A process running in kernel mode can execute any instruction in the instruction set and access any memory location in the system.
+
+When the mode bit is not set, the process is running in _user mode_. A process in user mode is not allowed to execute _privileged instructions_ that do things such as halt the processor, change the mode bit, or initiate an I/O operation. Nor is it allowed to directly reference code or data in the kernel area of the address space. Any such attempt results in a fatal protection fault. **User programs must instead access kernel code and data indirectly via the system call interface**.
+
+A process running application code is initially in user mode. **The only way for the process to change from user mode to kernel mode is via an exception such as an interrupt, a fault, or a trapping system call.** When the exception occurs, and control passes to the exception handler, the processor changes the mode from user mode to kernel mode. The handler runs in kernel mode. When it returns to the application code, the processor changes the mode from kernel mode back to user mode.
+
+**Linux provides a clever mechanism, called the `/proc` filesystem, that allows user mode processes to access the contents of kernel data structures**. The `/proc` filesystem exports the contents of many kernel data structures as a hierarchy of text files that can be read by user programs. For example, you can use the /proc filesystem to find out general system attributes such as CPU type (`/proc/cpuinfo`), or the memory segments used by a particular process (`/proc/process-id/maps`). The 2.6 version of the Linux kernel introduced a `/sys` filesystem, which exports additional low-level information about system buses and devices.
+
+### 8.2.5 Context Switches
+
+The operating system kernel implements multitasking using a higher-level form of exceptional control flow known as a _context switch_. The context switch mechanism is built on top of the lower-level exception mechanism that we discussed in **Section 8.1**.
+
+The kernel maintains a context for each process. The context is the state that the kernel needs to restart a preempted process. It consists of the values of objects such as the 
+* general-purpose registers,
+* the floating-point registers,
+* the program counter,
+* user’s stack,
+* status registers,
+* kernel’s stack,
+* and various kernel data structures such as a page table that characterizes the address space,
+* a process table that contains information about the current process,
+* and a file table that contains information about the files that the process has opened.
+
+At certain points during the execution of a process, the kernel can decide to preempt the current process and restart a previously preempted process. This decision is known as _scheduling_ and is handled by code in the kernel, called the _scheduler_.
+
+When the kernel selects a new process to run, we say that the kernel has scheduled that process. After the kernel has scheduled a new process to run, it preempts the current process and transfers control to the new process using a mechanism called a context switch that 
+1. saves the context of the current process,
+2. restores the saved context of some previously preempted process, and
+3. passes control to this newly restored process.
+
+A context switch can occur while the kernel is executing a system call on behalf of the user. If the system call blocks because it is waiting for some event to occur, then the kernel can put the current process to sleep and switch to another process. For example, if a read system call requires a disk access, the kernel can opt to perform a context switch and run another process instead of waiting for the data to arrive from the disk. Another example is the sleep system call, which is an explicit request to put the calling process to sleep. **In general, even if a system call does not block, the kernel can decide to perform a context switch rather than return control to the calling process.**
+
+A context switch can also occur as a result of an interrupt. For example, all systems have some mechanism for generating periodic timer interrupts, typically every 1 ms or 10 ms. Each time a timer interrupt occurs, the kernel can decide that the current process has run long enough and switch to a new process.
+
+__Figure 8.14__ shows an example of context switching between a pair of processes A and B. In this example, initially process A is running in user mode until it traps to the kernel by executing a `read` system call. The trap handler in the kernel requests a DMA transfer from the disk controller and arranges for the disk to interrupt the processor after the disk controller has finished transferring the data from disk to memory.
+
+The disk will take a relatively long time to fetch the data (on the order of tens of milliseconds), so instead of waiting and doing nothing in the interim, the kernel performs a context switch from process A to B. Note that, before the switch, the kernel is executing instructions in user mode on behalf of process A (i.e., **there is no separate kernel process**). During the first part of the switch, the kernel is executing instructions in kernel mode on behalf of process A. Then at some point it begins executing instructions (still in kernel mode) on behalf of process B. And after the switch, the kernel is executing instructions in user mode on behalf of process B.
+
+Process B then runs for a while in user mode until the disk sends an interrupt to signal that data have been transferred from disk to memory. The kernel decides that process B has run long enough and performs a context switch from process B to A, returning control in process A to the instruction immediately following the read system call. Process A continues to run until the next exception occurs, and so on.
+
+## 8.3 System Call Error Handling
+
+Read through
+
+## 8.4 Process Control
+### 8.4.1 Obtaining Process IDs
+
+Each process has a unique positive (nonzero) process ID (PID). The `getpid` function returns the PID of the calling process. The `getppid` function returns the PID of its parent (i.e., the process that created the calling process).
+
+The `getpid` and `getppid` routines return an integer value of type `pid_t`, which on Linux systems is defined in `types.h` as an `int`.
+
+### 8.4.2 Creating and Terminating Processes
+
+From a programmer’s perspective, we can think of a process as being in one of three states:
+* _Running._ The process is either executing on the CPU or waiting to be executed and will eventually be scheduled by the kernel.
+* _Stopped._ The execution of the process is suspended and will not be scheduled. A process stops as a result of receiving a SIGSTOP, SIGTSTP, SIGTTIN, or SIGTTOU signal, and it remains stopped until it receives a SIGCONT signal, at which point it becomes running again. (A signal is a form of software interrupt that we will describe in detail in Section 8.5.)
+* _Terminated._ The process is stopped permanently. A process becomes terminated for one of three reasons: (1) receiving a signal whose default action is to terminate the process, (2) returning from the main routine, or (3) calling the exit function.
+
+**Terminating**
+
+The `exit` function terminates the process with an exit status of status. (The other way to set the exit status is to return an integer value from the main routine.)
+
+**Creating** 
+
+A parent process creates a new running child process by calling the `fork`
+function.
+
+The newly created child process is almost, but not quite, identical to the parent. The child gets 
+* an identical (but separate) copy of the parent’s user-level virtual address space, including the code and data segments, heap, shared libraries, and user stack.
+* The child also gets identical copies of any of the parent’s open file descriptors, which means the child can read and write any files that were open in the parent when it called fork.
+
+The most significant difference between the parent and the newly created child is that they have different PIDs.
+
+The `fork` function is interesting (and often confusing) because it is called once but it returns twice: once in the calling process (the parent), and once in the newly created child process. 
+* In the parent, fork returns the PID of the child.
+* In the child, fork returns a value of 0.
+
+Since the PID of the child is always nonzero, the return value provides an unambiguous way to tell whether the program is executing in the parent or the child.
+
+### 8.4.3 Reaping Child Processes
+
+When a process terminates for any reason, the kernel does not remove it from the system immediately. Instead, the process is kept around in a terminated state until it is _reaped_ by its parent. When the parent reaps the terminated child, the kernel passes the child’s exit status to the parent and then discards the terminated process, at which point it ceases to exist. A terminated process that has not yet been reaped is called a _zombie_.
+
+When a parent process terminates, the kernel arranges for the `init` process to become the adopted parent of any orphaned children. The `init` process, which has a PID of 1, is created by the kernel during system start-up, never terminates, and is the ancestor of every process. If a parent process terminates without reaping its zombie children, then the kernel arranges for the `init` process to reap them. However, long-running programs such as shells or servers should always reap their zombie children. Even though zombies are not running, they still consume system memory resources.
+
+A process waits for its children to terminate or stop by calling the `waitpid` function.
+
+The `waitpid` function is complicated. By default (when options = 0), waitpid suspends execution of the calling process until a child process in its wait set terminates. If a process in the wait set has already terminated at the time of the call, then `waitpid` returns immediately. In either case, `waitpid` returns the PID of the terminated child that caused `waitpid` to return. At this point, the terminated child has been reaped and the kernel removes all traces of it from the system.
+
+**Determining the Members of the Wait Set**
+
+The members of the wait set are determined by the pid argument:
+* If $pid > 0$, then the wait set is the singleton child process whose process ID is
+equal to pid.
+* If $pid = -1$, then the wait set consists of all of the parent’s child processes.
+
+**Modifying the Default Behavior**
+
+The default behavior can be modified by setting options to various combinations of the WNOHANG, WUNTRACED, and WCONTINUED constants:
+
+* WNOHANG. Return immediately (with a return value of 0) if none of the child processes in the wait set has terminated yet. The default behavior suspends the calling process until a child terminates; this option is useful in those cases where you want to continue doing useful work while waiting for a child to terminate.
+* WUNTRACED. Suspend execution of the calling process until a process in the wait set becomes either terminated or stopped. Return the PID of the terminated or stopped child that caused the return. The default behavior returns only for terminated children; this option is useful when you want to check for both terminated and stopped children.
+* WCONTINUED. Suspend execution of the calling process until a running process in the wait set is terminated or until a stopped process in the wait set has been resumed by the receipt of a SIGCONT signal.
+
+can combine options by `oring` them together
+
+**Checking the Exit Status of a Reaped Child**
+
+If the `statusp` argument is non-NULL, then `waitpid` encodes status information
+about the child that caused the return in `status`, which is the value pointed to
+by `statusp`. The `wait.h` include file defines several macros for interpreting the
+`status` argument:
+* WIFEXITED(status). Returns true if the child terminated normally, via a call to exit or a return.
+* WEXITSTATUS(status). Returns the exit status of a normally terminated child. This status is only defined if WIFEXITED() returned true. WIFSIGNALED(status). Returns true if the child process terminated because of a signal that was not caught.
+* WTERMSIG(status). Returns the number of the signal that caused the child process to terminate. This status is only defined if WIFSIGNALED() returned true.
+* WIFSTOPPED(status). Returns true if the child that caused the return is currently stopped.
+* WSTOPSIG(status). Returns the number of the signal that caused the child to stop. This status is only defined if WIFSTOPPED() returned true.
+* WIFCONTINUED(status). Returns true if the child process was restarted by receipt of a SIGCONT signal.
+
+**Error Conditions**
+
+If the calling process has no children, then `waitpid` returns −1 and sets `errno` to ECHILD. If the `waitpid` function was interrupted by a signal, then it returns −1 and sets `errno` to EINTR.
+
+**Examples of Using waitpid**
+
+![](asset/ch8/11.png)
+
+**Figure 8.18** shows a program that uses `waitpid` to wait, in no particular order, for all of its N children to terminate. In line 11, the parent creates each of the N children, and in line 12, each child exits with a unique exit status.
+
+In line 15, the parent waits for all of its children to terminate by using `waitpid` as the test condition of a while loop. Because the first argument is −1, the call to `waitpid` blocks until an arbitrary child has terminated. As each child terminates, the call to `waitpid` returns with the nonzero PID of that child. Line 16 checks the exit status of the child. If the child terminated normally in this case, by calling the `exit` function—then the parent extracts the exit status and prints it on `stdout`.
+
+When all of the children have been reaped, the next call to waitpid returns −1 and sets `errno` to ECHILD. Line 24 checks that the `waitpid` function terminated normally, and prints an error message otherwise
+
+![](asset/ch8/12.png)
+
+Notice that the program reaps its children in no particular order. The order that they were reaped is a property of this specific computer system.
+
+**Figure 8.19** shows a simple change that eliminates this nondeterminism in the output order by reaping the children in the same order that they were created by the parent. In line 11, the parent stores the PIDs of its children in order and then waits for each child in this same order by calling `waitpid` with the appropriate PID in the first argument.
+
+### 8.4.4 Putting Processes to Sleep
+
+The `sleep` function suspends a process for a specified period of time.
+
+Sleep returns zero if the requested amount of time has elapsed, and the number of seconds still left to sleep otherwise. The latter case is possible if the sleep function returns prematurely because it was interrupted by a signal.
+
+Another function that we will find useful is the `pause` function, which puts the calling function to sleep until a signal is received by the process.
+
+### 8.4.5 Loading and Running Programs
+
+The `execve` function loads and runs a new program in the context of the current process. The `execve` function loads and runs the executable object file `filename` with the argument list argv and the environment variable list envp. Execve returns to the calling program only if there is an error, such as not being able to find filename. So unlike `fork`, which is called once but returns twice, `execve` is called once and never returns.
+
+The argument list is represented by the data structure shown in **Figure 8.20**. The `argv` variable points to a null-terminated array of pointers, each of which points to an argument string. By convention, `argv[0]` is the name of the executable object file. The list of environment variables is represented by a similar data structure, shown in **Figure 8.21**. The `envp` variable points to a null-terminated array of pointers to environment variable strings, each of which is a name-value pair of the form $name=value$.
+
+![](asset/ch8/13.png)
+
+After execve loads filename, it calls the start-up code described in **Sec-
+tion 7.9**. The start-up code sets up the stack and passes control to the main routine of the new program, which has a prototype of the form
+
+```
+int main(int argc, char **argv, char **envp);
+```
+
+When main begins executing, the user stack has the organization shown in **Figure 8.22**. Let’s work our way from the bottom of the stack (the highest address) to the top (the lowest address). First are the argument and environment strings. These are followed further up the stack by a null-terminated array of pointers, each of which points to an environment variable string on the stack. The global variable environ points to the first of these pointers, `envp[0]`. The environment array is followed by the null-terminated `argv[]` array, with each element pointing to an argument string on the stack. **At the top of the stack is the stack frame for the system start-up function**, libc_start_main (**Section 7.9**).
+
+The `getenv` function searches the environment array for a string $name=value$. If
+found, it returns a pointer to `value`; otherwise, it returns `NULL`
+
+If the environment array contains a string of the form name=oldvalue, then
+unsetenv deletes it and setenv replaces oldvalue with newvalue, but only if
+overwrite is nonzero. If name does not exist, then setenv adds name=newvalue
+to the array.
+
+### 8.4.6 Using fork and execve to Run Programs
+
+Read the book.
+
+## 8.5 Signals
+
+A signal is a small message that notifies a process that an event of some type has occurred in the system. 
+
+Each signal type corresponds to some kind of system event. Low-level hardware exceptions are processed by the kernel’s exception handlers and would not normally be visible to user processes. Signals provide a mechanism for exposing the occurrence of such exceptions to user processes.
+
+![](asset/ch8/15.png)
+
+### 8.5.1 Signal Terminology
+
+The transfer of a signal to a destination process occurs in two distinct steps:
+
+* _Sending a signal._ **The kernel sends (delivers) a signal to a destination process by updating some state in the context of the destination process**. The signal is delivered for one of two reasons: (1) The kernel has detected a system event such as a divide-by-zero error or the termination of a child process. (2) A process has invoked the kill function (discussed in the next section) to explicitly request the kernel to send a signal to the destination process. A process can send a signal to itself.
+
+* _Receiving a signal._ A destination process receives a signal when it is forced by the kernel to react in some way to the delivery of the signal. The process can either ignore the signal, terminate, or catch the signal by executing a user-level function called a signal handler. **Figure 8.27** shows the basic idea of a handler catching a signal.
+
+![](asset/ch8/14.png)
+
+A signal that has been sent but not yet received is called a _pending signal_. **At any point in time, there can be at most one pending signal of a particular type. If a process has a pending signal of type `k`, then any subsequent signals of type k sent to that process are not queued; they are simply discarded.** A process can selectively block the receipt of certain signals. When a signal is blocked, it can be delivered, but the resulting pending signal will not be received until the process unblocks the signal.
+
+A pending signal is received at most once. For each process, the kernel maintains the set of pending signals in the `pending` bit vector, and the set of blocked signals in the `blocked` bit vector.1 The kernel sets bit `k` in pending whenever a signal of type `k` is delivered and clears bit `k` in pending whenever a signal of type `k` is received.
+
+### 8.5.2 Sending Signals
+
+Unix systems provide a number of mechanisms for sending signals to processes. All of the mechanisms rely on the notion of a _process group_.
+
+**Process Groups**
+
+Every process belongs to exactly one _process group_, which is identified by a positive integer _process group ID_. The `getpgrp` function returns the process group ID of the current process.
+
+By default, a child process belongs to the same process group as its parent. A process can change the process group of itself or another process by using the `setpgid` function:
+
+The `setpgid` function changes the process group of process `pid` to `pgid`. If `pid` is zero, the PID of the current process is used. If `pgid` is zero, the PID of the process specified by `pid` is used for the process group ID. For example, if process 15213 is the calling process, then
+
+```
+setpgid(0, 0);
+```
+
+creates a new process group whose process group ID is 15213, and adds process 15213 to this new group.
+
+**Sending Signals with the /bin/kill Program**
+
+The `/bin/kill` program sends an arbitrary signal to another process.
+
+```
+linux> /bin/kill -9 15213
+```
+
+A negative PID causes the signal to be sent to every process in process group PID. For example, the command
+
+```
+linux> /bin/kill -9 -15213
+```
+
+**Sending Signals from the Keyboard**
+
+Unix shells use the abstraction of a `job` to represent the processes that are created as a result of evaluating a single command line. At any point in time, there is at most one foreground job and zero or more background jobs. For example, typing
+
+```
+linux> ls | sort
+```
+
+creates a foreground job consisting of two processes connected by a Unix pipe: one running the `ls` program, the other running the `sort` program. **The shell creates a separate process group for each job.** Typically, the process group ID is taken from one of the parent processes in the job. For example, **Figure 8.28** shows a shell with one foreground job and two background jobs. The parent process in the foreground job has a PID of 20 and a process group ID of 20. The parent process has created two children, each of which are also members of process group 20.
+
+![](asset/ch8/16.png)
+
+Typing Ctrl+C at the keyboard causes the kernel to send a SIGINT signal to
+every process in the foreground process group. In the default case, the result is to terminate the foreground job. Similarly, typing Ctrl+Z causes the kernel to send a SIGTSTP signal to every process in the foreground process group. In the default case, the result is to stop (suspend) the foreground job.
+
+**Sending Signals with the kill Function**
+
+Processes send signals to other processes (including themselves) by calling the
+`kill` function.
+
+If `pid` is greater than zero, then the `kill` function sends signal number `sig` to process pid. If `pid` is equal to zero, then `kill` sends signal sig to every process in the process group of the calling process, including the calling process itself. If `pid` is less than zero, then `kill` sends signal `sig` to every process in process group `|pid|` (the absolute value of pid).
+
+**Sending Signals with the alarm Function**
+
+A process can send SIGALRM signals to itself by calling the `alarm` function.
+
+The alarm function arranges for the kernel to send a SIGALRM signal to the calling process in secs seconds. If secs is 0, then no new alarm is scheduled. In any event, the call to alarm cancels any pending alarms and returns the number of seconds remaining until any pending alarm was due to be delivered (had not this call to alarm canceled it), or 0 if there were no pending alarms.
+
+### 8.5.3 Receiving Signals
+
+When the kernel switches a process `p` from kernel mode to user mode (e.g., returning from a system call or completing a context switch), it checks the set of unblocked pending signals (`pending & ~blocked`) for `p`. If this set is empty (the usual case), then the kernel passes control to the next instruction ($I_{next}$) in the logical control flow of `p`.
+
+However, if the set is nonempty, then the kernel chooses some signal `k` in the set (typically the smallest `k`) and forces `p` to receive signal `k`. The receipt of the signal triggers some action by the process. Once the process completes the action, then control passes back to the next instruction ($I_{next}$) in the logical control flow of `p`. Each signal type has a predefined default action, which is one of the following:
+
+* The process terminates.
+* The process terminates and dumps core.
+* The process stops (suspends) until restarted by a SIGCONT signal.
+* The process ignores the signal.
+
+A process can modify the default action associated with a signal by using the `signal` function. **The only exceptions are SIGSTOP and SIGKILL, whose default actions cannot be changed.**
+
+The `signal` function can change the action associated with a signal signum in one of three ways:
+* If handler is SIG_IGN, then signals of type `signum` are ignored.
+* If handler is SIG_DFL, then the action for signals of type `signum` reverts to the default action.
+* Otherwise, handler is the address of a user-defined function, called a _signal handler_, that will be called whenever the process receives a signal of type signum. Changing the default action by passing the address of a handler to the signal function is known as _installing the handler_. The invocation of the handler is called _catching the signal_. The execution of the handler is referred to as _handling the signal_.
+
+When a process catches a signal of type `k`, the handler installed for signal `k` is invoked with a single integer argument set to `k`. **This argument allows the same handler function to catch different types of signals.**
+
+When the handler executes its `return` statement, control (usually) passes back to the instruction in the control flow where the process was interrupted by the receipt of the signal. We say “usually” because in some systems, interrupted system calls return immediately with an error.
+
+Signal handlers can be interrupted by other handlers, as shown in **Figure 8.31**. In this example, the main program catches signal $s$, which interrupts the main program and transfers control to handler $S$. While $S$ is running, the program catches signal $t != s$, which interrupts $S$ and transfers control to handler $T$ . When $T$ returns, $S$ resumes where it was interrupted. Eventually, $S$ returns, transferring control back to the main program, which resumes where it left off.
+
+![](asset/ch8/17.png)
+
+### 8.5.4 Blocking and Unblocking Signals
+
+* _Implicit blocking mechanism_. By default, the kernel blocks any pending signals of the type currently being processed by a handler.
+* _Explicit blocking mechanism_. Applications can explicitly block and unblock
+selected signals using the `sigprocmask` function and its helpers.
+
+### 8.5.5 Writing Signal Handlers
+
+Signal handling is one of the thornier aspects of Linux system-level programming. Handlers have several attributes that make them difficult to reason about: 
+1. Handlers run concurrently with the main program and share the same global variables, and thus can interfere with the main program and with other handlers.
+2. The rules for how and when signals are received is often counterintuitive.
+3. Different systems can have different signal-handling semantics.
+
+**Safe Signal Handling**
+
+Signal handlers are tricky because they can run concurrently with the main program and with each other, as we saw in **Figure 8.31**. If a handler and the main program access the same global data structure concurrently, then the results can be unpredictable and often fatal.
+
+![](asset/ch8/18.png)
+
+* _G0. Keep handlers as simple as possible._ The best way to avoid trouble is to keep your handlers as small and simple as possible.
+* _G1. Call only async-signal-safe functions in your handlers._ A function that is async-signal-safe, or simply safe, has the property that it can be safely called from a signal handler, either because it is reentrant (e.g., accesses only local variables), or because it cannot be interrupted by a signal handler. **Figure 8.33** lists the system-level functions that Linux guarantees to be safe. Notice that many popular functions, such as `printf`, `sprintf`, `malloc`, and `exit`, are not on this list.
+* _G2. Save and restore errno._ Many of the Linux async-signal-safe functions set errno when they return with an error. Calling such functions inside a handler might interfere with other parts of the program that rely on errno. The workaround is to save errno to a local variable on entry to the handler and restore it before the handler returns. Note that this is only necessary if the handler returns. It is not necessary if the handler terminates the process by calling `_exit`.
+* _G3. Protect accesses to shared global data structures by blocking all signals._ If a handler shares a global data structure with the main program or with other handlers, then your handlers and main program should temporarily block all signals while accessing (reading or writing) that data structure.
+
+* _G4. Declare global variables with volatile._ Consider a handler and `main` routine that share a global variable `g`. The handler updates `g`, and main periodically reads `g`. To an optimizing compiler, it would appear that the value of `g` never changes in main, and thus it would be safe to use a copy of `g` that is cached in a register to satisfy every reference to `g`. In this case, the `main` function would never see the updated values from the handler. The volatile qualifier forces the compiler to read the value of g from memory each time it is referenced in the code. In general, as with any shared data structure, each access to a global variable should be protected by temporarily blocking signals.
+
+* _G5. Declare flags with sig_atomic_t._ In one common handler design, the handler records the receipt of the signal by writing to a global `flag`. The main program periodically reads the flag, responds to the signal, and clears the flag. For flags that are shared in this way, C provides an integer data type, `sig_atomic_t`, for which reads and writes are guaranteed to be `atomic` (uninterruptible) because they can be implemented with a single instruction. Note that the guarantee of atomicity only applies to individual reads and writes. It does not apply to updates such as `flag++` or `flag = flag + 10`, which might require multiple instructions.
+
+Keep in mind that the guidelines we have presented are conservative, in the sense that they are not always strictly necessary. For example, if you know that a handler can never modify `errno`, then you don’t need to save and restore `errno`. Or if you can prove that no instance of `printf` can ever be interrupted by a handler, then it is safe to call `printf` from the handler. The same holds for accesses to shared global data structures. However, it is very difficult to prove such assertions in general. So we recommend that you take the conservative approach and follow the guidelines by keeping your handlers as simple as possible, calling safe functions, saving and restoring errno, protecting accesses to shared data structures, and using `volatile` and `sig_atomic_t`.
+
+**Portable Signal Handling**
+
+Another ugly aspect of Unix signal handling is that different systems have different signal-handling semantics. For example:
+* _The semantics of the `signal` function varies._ Some older Unix systems restore the action for signal k to its default after signal `k` has been caught by a handler. On these systems, the handler must explicitly reinstall itself, by calling `signal`, each time it runs.
+
+* _System calls can be interrupted._ System calls such as `read`, `wait`, and `accept` that can potentially block the process for a long period of time are called _slow system calls_. On some older versions of Unix, slow system calls that are interrupted when a handler catches a signal do not resume when the signal handler returns but instead return immediately to the user with an error condition and errno set to EINTR. On these systems, programmers must include code that manually restarts interrupted system calls.
+
+To deal with these issues, the Posix standard defines the `sigaction` function, which allows users to clearly specify the signal-handling semantics they want when they install a handler.
+
+### 8.5.6 Synchronizing Flows to Avoid Nasty Concurrency Bugs
+
+Read the book
+
+### 8.5.7 Explicitly Waiting for Signals
+
+Read the book
+
+
+
+## 8.6 Nonlocal Jumps
+
+C provides a form of user-level exceptional control flow, called a _nonlocal jump_, that transfers control directly from one function to another currently executing function without having to go through the normal call-and-return sequence. Nonlocal jumps are provided by the `setjmp` and `longjmp` functions.
+
+The `setjmp` function saves the current _calling environment_ in the `env` buffer, for later use by `longjmp`, and returns 0. The calling environment includes the program counter, stack pointer, and general-purpose registers. **For subtle reasons beyond our scope, the value that `setjmp` returns should not be assigned to a variable. However, it can be safely used as a test in a switch or conditional statement**
+
+An important application of nonlocal jumps is to permit an immediate return from a deeply nested function call, usually as a result of detecting some error condition. If an error condition is detected deep in a nested function call, we can use a nonlocal jump to return directly to a common localized error handler instead of laboriously unwinding the call stack.
+
+The feature of longjmp that allows it to skip up through all intermediate calls can have unintended consequences. For example, if some data structures were allocated in the intermediate function calls with the intention to deallocate them at the end of the function, the deallocation code gets skipped, thus creating a memory leak.
+
+Another important application of nonlocal jumps is to branch out of a signal handler to a specific code location, rather than returning to the instruction that was interrupted by the arrival of the signal. The `sigsetjmp` and `siglongjmp` functions are versions of `setjmp` and `longjmp` that can be used by signal handlers.
+
+To avoid a race, we must install the handler after we call `sigsetjmp`. The sigsetjmp and `siglongjmp` functions are not on the list of async-signal-safe functions in **Figure 8.33**. The reason is that in general `siglongjmp` can jump into arbitrary code, so we must be careful to call only safe functions in any code reachable from a `siglongjmp`.
+
+## 8.7 Tools for Manipulating Processes
+Linux systems provide a number of useful tools for monitoring and manipulating
+processes:
+
+* `strace`. Prints a trace of each system call invoked by a running program and its children. It is a fascinating tool for the curious student. Compile your program with `-static` to get a cleaner trace without a lot of output related to shared libraries.
+* `ps`. Lists processes (including zombies) currently in the system.
+* `top`. Prints information about the resource usage of current processes.
+* `pmap`. Displays the memory map of a process.
+* `/proc`. A virtual filesystem that exports the contents of numerous kernel data structures in an ASCII text form that can be read by user programs. For example, type `cat /proc/loadavg` to see the current load average on your Linux system.
+
+## 8.8 Summary
+
+Exceptional control flow (ECF) occurs at all levels of a computer system and **is a
+basic mechanism for providing concurrency in a computer system**.
+
+At the hardware level, exceptions are abrupt changes in the control flow that
+are triggered by events in the processor. The control flow passes to a software
+handler, which does some processing and then returns control to the interrupted
+control flow.
+
+There are four different types of exceptions: 
+* interrupts,
+* faults,
+* aborts,
+* and traps.
+
+Interrupts occur asynchronously (with respect to any instructions) when
+an external I/O device such as a timer chip or a disk controller sets the interrupt pin on the processor chip. Control returns to the instruction following the faulting instruction. Faults and aborts occur synchronously as the result of the execution of an instruction. Fault handlers restart the faulting instruction, while abort handlers never return control to the interrupted flow.
+Finally, traps are like function calls that are used to implement the system calls
+that provide applications with controlled entry points into the operating system code.
+
+At the operating system level, the kernel uses ECF to provide the fundamental notion of a process. A process provides applications with two important
+abstractions: (1) logical control flows that give each program the illusion that it
+has exclusive use of the processor, and (2) private address spaces that provide the
+illusion that each program has exclusive use of the main memory.
+
+Finally, at the application level, C programs can use nonlocal jumps to bypass
+the normal call/return stack discipline and branch directly from one function to
+another.
