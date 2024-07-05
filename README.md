@@ -2,9 +2,9 @@
 
 Just for fun :>
 
-## Why jupyter
+## ~~Why jupyter~~
 
-It can run c kernel, however I found it really inconvenient. Should have use plain markdown.
+~~It can run c kernel, however I found it really inconvenient. Should~~ have use plain markdown.
 
 ## Pin
 A true master is an eternal student
