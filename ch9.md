@@ -285,8 +285,7 @@ As we have seen, every time the CPU generates a virtual address, the MMU must re
 
 ![](asset/ch9/13.png)
 
-__A TLB is a small, virtually addressed cache where each line holds a block
-consisting of a single PTE__. A TLB usually has a high degree of associativity. As shown in **Figure 9.15**, the index and tag fields that are used for set selection and line matching are extracted from the virtual page number in the virtual address. If the TLB has $T = 2^t$ sets, then the _TLB index (TLBI)_ consists of the $t$ least significant bits of the VPN, and the _TLB tag (TLBT)_ consists of the remaining bits in the VPN.
+__A TLB is a small, virtually addressed cache where each line holds a block consisting of a single PTE__. A TLB usually has a high degree of associativity. As shown in **Figure 9.15**, the index and tag fields that are used for set selection and line matching are extracted from the virtual page number in the virtual address. If the TLB has $T = 2^t$ sets, then the _TLB index (TLBI)_ consists of the $t$ least significant bits of the VPN, and the _TLB tag (TLBT)_ consists of the remaining bits in the VPN.
 
 ![](asset/ch9/17.png)
 
